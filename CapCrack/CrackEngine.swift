@@ -46,7 +46,7 @@ final class CrackEngine {
             .utf8,
             .utf16,
             String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(
-                CFStringEncoding(CFStringEncodings.gb_18030_2000.rawValue)
+                CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)
             ))
         ]
         var raw: String?
