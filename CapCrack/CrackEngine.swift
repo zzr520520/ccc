@@ -41,12 +41,30 @@ final class CrackEngine {
     var isExhausted: Bool { index >= dictionaryLines.count }
 
     func loadDictionary(from url: URL) -> Bool {
-        guard let raw = try? String(contentsOf: url, encoding: .utf8) else {
-            return false
+        // 兼容多种常见编码: UTF-8 / UTF-16 / GB18030(GBK 超集), 逐种尝试
+        let encodings: [String.Encoding] = [
+            .utf8,
+            .utf16,
+            String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(
+                CFStringEncoding(CFStringEncodings.gb_18030_2000.rawValue)
+            ))
+        ]
+        var raw: String?
+        for enc in encodings {
+            if let text = try? String(contentsOf: url, encoding: enc) {
+                raw = text
+                break
+            }
         }
-        dictionaryLines = raw
+        guard let text = raw else { return false }
+
+        let rawLines = text
             .components(separatedBy: .newlines)
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        // 去重并保持顺序
+        var seen = Set<String>()
+        let lines = rawLines.filter { seen.insert($0).inserted }
+        dictionaryLines = lines
 
         index = 0
         lastTick = Date()

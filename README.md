@@ -59,6 +59,14 @@ ccc/
 需要密码学库(PBKDF2-SHA1 等)。当前 `CrackEngine.progressOneStep(verify:)` 的 `verify`
 钩子为空实现,仅作调度演示。接入真实校验后即可用于授权的 hashcat/aircrack 同原理学习。
 
+## 导入能力
+
+- **TXT**：直接导入并装载,自动兼容 UTF-8 / UTF-16 / GB18030(GBK 超集)编码。
+- **ZIP**：导入后自动解压到沙盒,并回收其中的 TXT 字典(依赖 SPM 库 `marmelroy/Zip`)。密码保护的 zip 暂不支持。
+- **RAR**：会导入沙盒,但真正解压需集成 `UnrarKit`(闭源,未内置)。
+- **CAP/PCAP**：校验 PCAP/PCAPNG 魔数与链路类型(105=IEEE 802.11),失败会给出具体原因。
+- 导入统一走 `fileImporter` 全类型(`.item`) + `security-scoped` 访问,避免自定义扩展名选不了/读不到的问题。
+
 ## 本地调试
 
 ```bash

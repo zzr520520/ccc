@@ -146,10 +146,12 @@ struct CrackDashboardView: View {
             }
             .padding()
             .navigationTitle("Cap 字典跑包控制台")
-            .fileImporter(isPresented: $showingCapPicker, allowedContentTypes: [.data]) { result in
+            // 用 .item(所有文件) 放宽类型过滤, 否则 .cap/.rar/.zip 等自定义扩展名
+            // 在系统文件选择器里会显示为灰色不可选, "导入不了"
+            .fileImporter(isPresented: $showingCapPicker, allowedContentTypes: [.item]) { result in
                 handleCapImport(result)
             }
-            .fileImporter(isPresented: $showingDictPicker, allowedContentTypes: [.plainText]) { result in
+            .fileImporter(isPresented: $showingDictPicker, allowedContentTypes: [.item]) { result in
                 handleDictImport(result)
             }
             .alert(isPresented: $showingAlert) {
@@ -165,33 +167,45 @@ struct CrackDashboardView: View {
     private func handleCapImport(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
-            if let info = CapParser.parseCapFile(at: url) {
+            switch CapParser.parseCapFile(at: url) {
+            case .success(let info):
                 capInfo = info
-                alertMessage = "已解析 .cap 文件"
-            } else {
-                alertMessage = "无法解析该 cap/pcap 文件"
+                alertMessage = "已解析 .cap 文件 (链路: Wi-Fi)"
+            case .failure(let reason):
+                alertMessage = "无法解析: \(reason)"
             }
             showingAlert = true
-        case .failure:
-            break
+        case .failure(let error):
+            alertMessage = "导入失败: \(error.localizedDescription)"
+            showingAlert = true
         }
     }
 
     private func handleDictImport(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
-            let imported = url.startAccessingSecurityScopedResource()
-            defer { if imported { url.stopAccessingSecurityScopedResource() } }
+            // 统一导入: 处理 security-scoped 访问, 对 zip 自动解压, rar/txt 复制进沙盒
+            let importResult = DictionaryManager.shared.importFile(from: url)
 
-            if engine.loadDictionary(from: url) {
+            guard let dirURL = importResult.url,
+                  let dictURL = DictionaryManager.shared.firstUsableDictionaryURL(afterImport: dirURL) else {
+                alertMessage = importResult.message.isEmpty
+                    ? "导入失败"
+                    : "\(importResult.message), 但未找到可用的 TXT 字典"
+                showingAlert = true
+                return
+            }
+
+            if engine.loadDictionary(from: dictURL) {
                 state = engine.state
-                alertMessage = "字典加载成功: \(state.totalCount) 条"
+                alertMessage = "\(importResult.message) · 已装载 \(state.totalCount) 条字典"
             } else {
-                alertMessage = "字典加载失败,需为 UTF-8 文本"
+                alertMessage = "\(importResult.message), 但文件无法解析为字典文本"
             }
             showingAlert = true
-        case .failure:
-            break
+        case .failure(let error):
+            alertMessage = "导入失败: \(error.localizedDescription)"
+            showingAlert = true
         }
     }
 
