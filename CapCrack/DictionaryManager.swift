@@ -19,9 +19,14 @@ class DictionaryManager {
         let fileExtension = sourceURL.pathExtension.lowercased()
         let destinationURL = dictionaryDirectory.appendingPathComponent(sourceURL.lastPathComponent)
 
-        do {
-            _ = try sourceURL.startAccessingSecurityScopedResource()
+        let didAccess = sourceURL.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                sourceURL.stopAccessingSecurityScopedResource()
+            }
+        }
 
+        do {
             if FileManager.default.fileExists(atPath: destinationURL.path) {
                 try FileManager.default.removeItem(at: destinationURL)
             }
@@ -37,8 +42,6 @@ class DictionaryManager {
         } catch {
             print("文件导入失败: \(error.localizedDescription)")
             return false
-        } finally {
-            sourceURL.stopAccessingSecurityScopedResource()
         }
     }
 
