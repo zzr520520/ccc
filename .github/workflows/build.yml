@@ -1,0 +1,63 @@
+name: Build and Package iOS IPA
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ipa-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # macos-13 已于 2025-12 正式退役; macos-14 亦进入弃用期(2026-11 停用)。
+    # 使用 macos-latest 当前指向 macOS 26 (Tahoe), 默认自带 Xcode 26.6。
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode Project
+        run: |
+          xcodegen generate
+          ls -la CapCrack.xcodeproj
+
+      - name: Build App (Release, unsigned)
+        run: |
+          xcodebuild -project CapCrack.xcodeproj \
+                     -scheme CapCrack \
+                     -sdk iphoneos \
+                     -configuration Release \
+                     -destination 'generic/platform=iOS' \
+                     -derivedDataPath build/derived \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     build
+
+      - name: Package IPA (unsigned)
+        run: |
+          cd "$GITHUB_WORKSPACE/build/derived/Build/Products/Release-iphoneos"
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R CapCrack.app Payload/
+          cd "$GITHUB_WORKSPACE"
+          ditto -c -k --keepParent build/derived/Build/Products/Release-iphoneos/Payload CapCrack-unsigned.ipa
+          ls -lh CapCrack-unsigned.ipa
+
+      # 启用签名示例:
+      # 在仓库 Settings -> Secrets 与 variables -> Actions 中配置 DEVELOPMENT_TEAM,
+      # 并将上方 Build 步骤的 CODE_SIGNING_ALLOWED/REQUIRED 改为 NO 去掉,
+      # 加上 -allowProvisioningUpdates, 改用下方命令导出正式签名的可安装 IPA。
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CapCrack-IPA
+          path: |
+            CapCrack-unsigned.ipa
+            build/derived/Build/Products/Release-iphoneos/CapCrack.app
+          if-no-files-found: error
